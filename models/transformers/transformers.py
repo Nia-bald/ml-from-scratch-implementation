@@ -60,7 +60,7 @@ class Transformers():
     
     def forward(self, x_batch):
         x_embedding = self.static_embedding(x_batch)
-        x_pos = self.static_embedding(torch.arange(self.context_length))
+        x_pos = self.position_embedding(torch.arange(self.context_length))
         x_batch = x_embedding + x_pos
 
         for attention_block in self.multi_head_self_attention_layers:
