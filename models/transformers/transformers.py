@@ -25,6 +25,7 @@ class SingularSelfAttentionHead(nn.Module):
 class LayerNorm(nn.Module):
 
     def __init__(self, epsilon):
+        super().__init__()
         self.epsilon = epsilon
     
     def forward(self, x_batch):
@@ -37,19 +38,19 @@ class LayerNorm(nn.Module):
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, number_of_heads, input_dimension, key_dimension, query_dimension):
         super().__init__()
-        self.heads = [
+        self.heads = nn.ModuleList([
                         SingularSelfAttentionHead(input_dimension, input_dimension//number_of_heads, key_dimension, query_dimension)
                         for _ in range(number_of_heads)
-                    ]
+                    ])
         self.feedforward = nn.Linear(input_dimension, input_dimension)
         self.layer_norm = LayerNorm(epsilon=0.0001)
     
     def forward(self, x_batch):
-        combined_self_attention = torch.cat([head.forward(x_batch) for head in self.heads], dim = -1)
+        combined_self_attention = torch.cat([head(x_batch) for head in self.heads], dim = -1)
         x_batch = x_batch + combined_self_attention
-        x_batch = self.layer_norm.forward(x_batch)
+        x_batch = self.layer_norm(x_batch)
         x_batch = x_batch + self.feedforward(x_batch)
-        return self.layer_norm.forward(x_batch)
+        return self.layer_norm(x_batch)
 
 
 
@@ -59,17 +60,14 @@ class Transformers(nn.Module):
         self.context_length = context_length
         self.static_embedding = nn.Embedding(vocab_size, embedding_dimension)
         self.position_embedding = nn.Embedding(context_length, embedding_dimension)
-        self.multi_head_self_attention_layers = [MultiHeadSelfAttention(heads_per_block, embedding_dimension, key_dimension, query_dimension) for _ in range(attention_blocks)]
+        self.multi_head_self_attention_layers = nn.Sequential(*[MultiHeadSelfAttention(heads_per_block, embedding_dimension, key_dimension, query_dimension) for _ in range(attention_blocks)])
         self.linear_vocab_dimension = nn.Linear(embedding_dimension, vocab_size)
     def forward(self, x_batch):
         x_embedding = self.static_embedding(x_batch)
         x_pos = self.position_embedding(torch.arange(self.context_length))
         x_batch = x_embedding + x_pos
-
-        for attention_block in self.multi_head_self_attention_layers:
-            x_batch = attention_block.forward(x_batch)
+        x_batch = self.multi_head_self_attention_layers(x_batch)
         x_batch = self.linear_vocab_dimension(x_batch)
         return x_batch
-
 
         
